@@ -35,7 +35,7 @@ class VisionTactileBackboneDataset(data.Dataset):
     ):
         super().__init__()
         self.config = config
-        self.sensor_type = self.config.sensor
+        self.sensor_type = sensor_type
         self.dataset_name = dataset_name
 
         assert self.sensor_type in ["digit", "gelsight", "gelsight_mini"], ValueError(

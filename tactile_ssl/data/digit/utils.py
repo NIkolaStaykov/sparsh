@@ -95,6 +95,10 @@ def get_bg_img(config, sensor_type, dataset_name, remove_bg=True):
             bg = cv2.imread("{0}/bg_{1}.jpg".format(path_bgs, bg_id))
         elif sensor_type == "gelsight_mini":
             bg = cv2.imread("{0}/bg_gs.jpg".format(path_bgs))
+            if bg is None:
+                # SparshData gelsight/Object-Slide/bgs only ships bg_0.jpg / bg_1.jpg
+                print(f"WARNING: {path_bgs}/bg_gs.jpg missing, using bg_0.jpg")
+                bg = cv2.imread("{0}/bg_0.jpg".format(path_bgs))
         else:
             raise ValueError("Unknown sensor type")
         bg = cv2.cvtColor(bg, cv2.COLOR_BGR2RGB)
