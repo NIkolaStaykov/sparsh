@@ -1,0 +1,8 @@
+# sip-ml.ethz.ch, home-only setup (2026-10-12): /pub/scratch is off-limits for now
+data_root: /local/home/nstaykov/data
+encoder_checkpoint_root: /local/home/nstaykov/models/sparsh
+log_dir: /local/home/nstaykov/outputs/sparsh_tasks/
+tacbench_dir: /local/home/nstaykov/outputs/tacbench/
+
+output_dir: ${hydra:runtime.output_dir}
+work_dir: ${hydra:runtime.cwd}

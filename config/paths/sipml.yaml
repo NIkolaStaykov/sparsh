@@ -1,0 +1,8 @@
+# sip-ml.ethz.ch: shared read-only Sparsh data (oguelbaz), our outputs on scratch
+data_root: /pub/scratch/oguelbaz/SparshData
+encoder_checkpoint_root: /pub/scratch/student-data/nstaykov/sparsh_models
+log_dir: /pub/scratch/student-data/nstaykov/outputs/
+tacbench_dir: /pub/scratch/student-data/nstaykov/tacbench/
+
+output_dir: ${hydra:runtime.output_dir}
+work_dir: ${hydra:runtime.cwd}
