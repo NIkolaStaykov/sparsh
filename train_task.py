@@ -3,6 +3,7 @@
 # This source code is licensed under the CC-BY-NC 4.0 license found in the
 # LICENSE file in the root directory of this source tree.
 
+import json
 import os
 import hydra
 import numpy as np
@@ -56,8 +57,19 @@ def get_dataloader_reskin(cfg: DictConfig):
     return train_dset, val_dset
 
 
+def split_trajectories(dset, test_frac, seed):
+    """Split a force/slip dataset by whole trajectories. Returns (train_idx, test_idx, test_trajectories)."""
+    trajs = sorted(dset.trajectories.keys())
+    rng = np.random.default_rng(seed)
+    test_trajs = set(rng.choice(trajs, int(round(test_frac * len(trajs))), replace=False).tolist())
+    is_test = np.array([dset.idx2traj[i]["trajectory"] in test_trajs for i in range(len(dset))])
+    return np.where(~is_test)[0], np.where(is_test)[0], sorted(test_trajs)
+
+
 def get_dataloader_digit(cfg: DictConfig):
     data_cfg = cfg.data
+    # optional trajectory-level split of one dataset: {dataset, test_frac, seed}
+    traj_split = data_cfg.get("traj_split", None)
     datasets = []
     list_datasets = data_cfg.dataset.config.list_datasets
     path_dataset = data_cfg.dataset.config.path_dataset
@@ -81,7 +93,12 @@ def get_dataloader_digit(cfg: DictConfig):
                     logger.error(f"Error loading {dataset_name}: {e}")
 
         else:
-            datasets.append(hydra.utils.instantiate(data_cfg.dataset, dataset_name=d))
+            dset = hydra.utils.instantiate(data_cfg.dataset, dataset_name=d)
+            if traj_split is not None and d == traj_split.dataset:
+                train_idx, _, _ = split_trajectories(dset, traj_split.test_frac, traj_split.seed)
+                logger.info(f"Trajectory split of {d}: {len(train_idx)} of {len(dset)} samples kept for training")
+                dset = data.Subset(dset, train_idx)
+            datasets.append(dset)
         
     train_dset_samples = sum([len(d) for d in datasets])
 
@@ -126,6 +143,25 @@ def get_dataloader_digit(cfg: DictConfig):
                     hydra.utils.instantiate(data_cfg.dataset, dataset_name=d)
                 )
         dataset_test = data.ConcatDataset(dataset_test)
+
+        test_idx = np.arange(len(dataset_test))
+        if traj_split is not None and list(list_datasets_test) == [traj_split.dataset]:
+            train_idx, test_idx, test_trajs = split_trajectories(
+                dataset_test.datasets[0], traj_split.test_frac, traj_split.seed
+            )
+            all_trajs = sorted(dataset_test.datasets[0].trajectories.keys())
+            with open(os.path.join(cfg.paths.output_dir, "traj_split.json"), "w") as f:
+                json.dump({"dataset": traj_split.dataset, "test": [int(t) for t in test_trajs],
+                           "train": [int(t) for t in all_trajs if t not in set(test_trajs)]}, f)
+            logger.info(f"Trajectory split of {traj_split.dataset}: testing on {len(test_trajs)} held-out trajectories ({len(test_idx)} samples)")
+        # optional fixed-size test subset (own seeded RNG, so indices are reproducible outside training)
+        max_test_data = data_cfg.get("max_test_data", None)
+        if max_test_data is not None and len(test_idx) > max_test_data:
+            rng = np.random.default_rng(data_cfg.get("test_subset_seed", 0))
+            test_idx = np.sort(rng.choice(test_idx, max_test_data, replace=False))
+        if len(test_idx) < len(dataset_test):
+            np.save(os.path.join(cfg.paths.output_dir, "test_subset_idxs.npy"), test_idx)
+            dataset_test = data.Subset(dataset_test, test_idx)
 
     if dataset_test is None:
         train_dset_size = int(len(dataset) * data_cfg.train_val_split)
